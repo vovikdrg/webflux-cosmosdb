@@ -45,6 +45,15 @@ public class WishlistManagementService {
                 .flatMap(this::validateProfileToWishlistPermission);
     }
 
+    public Mono<Wishlist> validateProfileToWishlistPermission(Tuple2<Profile, Wishlist> objects) {
+        //Validate that user has access to this profile
+        var wishlist = objects.getT2();
+        if (objects.getT1().getWishLists().contains(wishlist.getId())) {
+            return Mono.just(wishlist);
+        }
+        return Mono.empty();
+    }
+
     public Mono<Wishlist> addWishToWishlist(String profileId, String wishListId, String wish) {
         return Mono.defer(() -> getWishList(profileId, wishListId)
                 .flatMap(w -> {
@@ -55,41 +64,28 @@ public class WishlistManagementService {
     }
 
     public Mono<Wishlist> createWishlist(String profileId, String name) {
-        return wishlistRepository.save(Wishlist.builder()
+        var newWishList = Wishlist.builder()
                 .id(UUID.randomUUID().toString())
                 .name(name)
-                .build())
-                // Zip is to path wishlist to next map
-                .flatMap(wishList -> Mono.zip(
-                        Mono.just(wishList),
-                        this.appendWishlistToProfile(profileId, wishList)
-                ))
-                .map(Tuple2::getT1);
+                .build();
+        return wishlistRepository.save(newWishList)
+                .flatMap(wishList -> addWishlistAndSaveProfile(profileId, wishList));
     }
 
-    private Mono<Profile> appendWishlistToProfile(String profileId, Wishlist wishList) {
-        return Mono.defer(() ->
-                profileRepository
-                        .findById(profileId)
-                        .defaultIfEmpty(Profile
-                                .builder()
-                                .id(profileId)
-                                .build())
-                        .flatMap(profile -> {
-                            profile.getWishLists().add(wishList.getId());
-                            return profileRepository.save(profile);
-                        })
-        ).retryWhen(getRetrySpecs());
+    private Mono<Wishlist> addWishlistAndSaveProfile(String profileId, Wishlist wishList) {
+        return Mono.defer(() -> profileRepository
+                .findById(profileId)
+                .defaultIfEmpty(Profile.builder().id(profileId).build())
+                .flatMap(profile -> {
+                    profile.getWishLists().add(wishList.getId());
+                    return profileRepository.save(profile);
+                }))
+                .retryWhen(getRetrySpecs())
+                .map(p -> wishList);
     }
 
-    public Mono<Wishlist> validateProfileToWishlistPermission(Tuple2<Profile, Wishlist> objects) {
-        //Validate that user has access to this profile
-        var wishlist = objects.getT2();
-        if (objects.getT1().getWishLists().contains(wishlist.getId())) {
-            return Mono.just(wishlist);
-        }
-        return Mono.empty();
-    }
+
+
 
     public static RetryBackoffSpec getRetrySpecs(){
         return Retry.backoff(3, Duration.of(10, ChronoUnit.MILLIS))

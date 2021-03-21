@@ -17,9 +17,10 @@ public class ListController {
     }
 
     @GetMapping()
-    public Mono<WishlistDto> getList(@PathVariable String profileId, @PathVariable String listId) {
+    public Mono<ResponseEntity<WishlistDto>> getList(@PathVariable String profileId, @PathVariable String listId) {
         return service.getWishList(profileId, listId)
-                .map(w -> DtoMapper.convertToDto(w, true));
+                .map(w -> ResponseEntity.ok().body(DtoMapper.convertToDto(w, true)))
+                .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
     @PostMapping()

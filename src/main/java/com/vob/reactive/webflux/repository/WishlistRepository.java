@@ -8,5 +8,4 @@ import reactor.core.publisher.Flux;
 @Repository
 public interface WishlistRepository  extends ReactiveCosmosRepository<Wishlist, String> {
     Flux<Wishlist> findByIdIn(Iterable<String> ids);
-
 }
